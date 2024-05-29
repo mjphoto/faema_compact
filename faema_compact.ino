@@ -6,6 +6,7 @@ const int state_programming_idle = 3;
 const int state_programming_button = 4;
 const int state_flush = 5;
 const int state_preinfuse = 6;
+const int state_preinfuse_delay = 7;
 int state = state_off;
 
 boolean WATER_NEEDED;
@@ -47,8 +48,7 @@ int num_pix_old = 0;
 
 // PRESET STORAGE
 #include <EEPROM.h>
-//#include "/home/mw/git/faema_compact_control.h"
-#include "C:\Users\matt.jones\Downloads\faema_compact_control-master\faema_compact_control-master/EEPROMAnything.h"
+#include <EEPROMAnything.h>
 struct config_t
 {
    int preset[4];
@@ -71,9 +71,6 @@ boolean stringComplete = false;  // whether the string is complete
 
 // definition options
 #define DEBUG
-//Type of pump definitions for best preinfusion
-//#define VIBE
-#define ROTARY
 
 void setup_ledstrip(){
   #if defined (__AVR_ATtiny85__)
@@ -81,7 +78,6 @@ void setup_ledstrip(){
   #endif
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
-
 }
 
 void setup() {
@@ -130,10 +126,14 @@ unsigned long STOP_BUTTON_PUSH_START = 0;
 unsigned long FLUSH_BUTTON_PUSH_START = 0;
 const long STOP_BUTTON_TIME_THRESHOLD = 1500;
 const long FLUSH_BUTTON_TIME_THRESHOLD = 1500;
-const long preinfusion_time = 3000; //3 seconds of time for water pressure to infuse puck before pump starts
+const long preinfusion_time = 3500;
+const long preinfusion_delay_time = 6000; 
 unsigned long preinfuse_counter = 0;
 unsigned long preinfuse_present;
 unsigned long present;
+unsigned long preinfuse_delay_counter = 0;
+unsigned long preinfuse_delay_present;
+unsigned long present_delay;
 
 
 //Led strip stuff
@@ -223,6 +223,12 @@ void manage_ledstrip(){
     case state_flush:
       led_mode_rainbow();
       break;
+    case state_preinfuse:
+      led_mode_rainbow();
+      break;
+    case state_preinfuse_delay:
+      led_mode_rainbow();
+      break;
   }
 }
 
@@ -247,11 +253,12 @@ void loop() {
     case state_flush:
       proc_flush();
       break;
-    #ifdef ROTARY
     case state_preinfuse:
       proc_preinfuse();
       break;
-    #endif
+    case state_preinfuse_delay:
+      proc_preinfuse_delay();
+      break;
   }
   manage_outputs();
   manage_ledstrip();
@@ -338,18 +345,11 @@ void proc_idle(){
     if (digitalRead(BUTTON[x]) == HIGH){
       Serial.println("Button selected!");
       dose = configuration.preset[x];
-      //dose = 20;
       detachInterrupt(FLOW_INT);
       flow_counter = 0;
       preinfuse_counter = 0;
       attachInterrupt(FLOW_INT, pulseCounter, FALLING);
-      #ifdef VIBE
-      state = state_pouring;
-      #endif
-      #ifdef ROTARY
-      Serial.println("ROTARY!");
       state = state_preinfuse;
-      #endif
     }
   }
   if (digitalRead(BUTTON_FLUSH) == HIGH){
@@ -385,7 +385,8 @@ void proc_preinfuse(){
   Serial.println(flow_counter);
   #endif
   if (preinfusion_time < preinfuse_present){
-     state = state_pouring;
+     digitalWrite(RELAY_GRP_SOLENOID,LOW);  
+     state = state_preinfuse_delay; 
   }
   if (flow_counter > dose){
     state = state_idle;
@@ -399,6 +400,30 @@ void proc_preinfuse(){
   }
 }
 
+void proc_preinfuse_delay(){
+  if (preinfuse_delay_counter == 0){ 
+    preinfuse_delay_counter = millis();  
+  }
+  unsigned long present_delay = millis(); 
+  preinfuse_delay_present = present_delay - preinfuse_delay_counter; 
+  #ifdef DEBUG
+  Serial.print("Soaking: Preinfuse soak time is ");
+  Serial.println(preinfuse_delay_present);
+  #endif
+  if (preinfusion_delay_time < preinfuse_delay_present){
+     state = state_pouring; 
+     preinfuse_delay_counter = 0;
+     preinfuse_delay_present = 0; 
+  }
+
+  if (digitalRead(BUTTON_STOP) == HIGH){
+    state = state_idle;
+    preinfuse_delay_counter = 0;
+    preinfuse_delay_present = 0;
+  }
+}
+
+
 void proc_programming_idle(){
   #ifdef DEBUG
   Serial.println("programming idle");
@@ -411,16 +436,11 @@ void proc_programming_idle(){
       flow_counter = 0;
       attachInterrupt(FLOW_INT, pulseCounter, FALLING);
       selected_button = x;
-      state = state_programming_button;
+      state = state_programming_button;  //I think we need another state here for pre-infusion programming & delay programming which will be the same as non-prpgramming just routing back to these other states
     }
   }
 }
 
-
-void attach_test() {
-  Serial.println("interrup received!");
-  flow_counter++;
-}
 
 void proc_programming_button(){
   #ifdef DEBUG
@@ -451,7 +471,6 @@ void proc_flush(){
   }
 }
 
-
 unsigned long WATER_NEEDED_TIME_THRESHOLD = 300000; // 5 minutes in milli seconds
 unsigned long WATER_NEEDED_START = 0;
 unsigned long FILL_STAT_HIGH_START = 0;
@@ -459,14 +478,13 @@ unsigned int  FILL_STAT_LVL_THRESHOLD = 720; // normally (open) high -> 1023. wh
 unsigned long FILL_TRIGGER_TIME_THRESHOLD = 3000;  // 3s in milli seconds 
 
 void manage_outputs(){
-//  unsigned long now = millis(); //to remove as per lates changes in commit "added more recent version and changed number leds to 15"
   unsigned int fill_stat_analog_val=0;
   fill_stat_analog_val = analogRead(FILL_STAT);
-  #ifdef DEBUGf
+  //#ifdef DEBUG
   //Serial.print("Fill stat value: ");
   //Serial.println(fill_stat_analog_val);
   //Serial.println(flow_counter);
-  #endif
+  //#endif
 
   if (fill_stat_analog_val>FILL_STAT_LVL_THRESHOLD){ // high -> water needed
     if (FILL_STAT_HIGH_START == 0){
@@ -529,7 +547,6 @@ void manage_outputs(){
     digitalWrite(RELAY_FILL_SOLENOID,LOW);
   }
 }
-
 
 void serialEvent() {
   while (Serial.available()) {
