@@ -27,17 +27,14 @@ const int BUTTON_TWO_SMALL = 12;
 const int BUTTON[4] = {BUTTON_ONE_SMALL, BUTTON_TWO_SMALL, BUTTON_ONE_BIG, BUTTON_TWO_BIG};
 
 // OUTPUTS
-const int RELAY_PUMP = 6;
-const int RELAY_FILL_SOLENOID = 5;
-const int RELAY_GRP_SOLENOID = 4;
-const int RELAY_HEATER = 3;
-const int led_13 = 13;
+const int RELAY_PUMP = 6; //relay for pump
+const int RELAY_FILL_SOLENOID = 5; //relay for resevior fill
+const int RELAY_GRP_SOLENOID = 4;  //relay for grouphead solenoid
+const int RELAY_HEATER = 3;  //relay for heater
+const int led_13 = 13; //LED strip output
 
 // LED STRIP
 #include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
 
 #define PIN A2
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(15, PIN, NEO_GRB + NEO_KHZ800);
@@ -73,9 +70,6 @@ boolean stringComplete = false;  // whether the string is complete
 #define DEBUG
 
 void setup_ledstrip(){
-  #if defined (__AVR_ATtiny85__)
-    if (F_CPU == 16000000) clock_prescale_set(clock_div_1);
-  #endif
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
 }
@@ -124,10 +118,10 @@ void pulseCounter()
 
 unsigned long STOP_BUTTON_PUSH_START = 0;
 unsigned long FLUSH_BUTTON_PUSH_START = 0;
-const long STOP_BUTTON_TIME_THRESHOLD = 1500;
-const long FLUSH_BUTTON_TIME_THRESHOLD = 1500;
-const long preinfusion_time = 3500;
-const long preinfusion_delay_time = 6000; 
+const long STOP_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
+const long FLUSH_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
+const long preinfusion_time = 3500; //amount of time (in miliseconds) for pre-infusion
+const long preinfusion_delay_time = 6000; //amount of time (in miliseconds) for pre-infusion soak
 unsigned long preinfuse_counter = 0;
 unsigned long preinfuse_present;
 unsigned long present;
@@ -233,7 +227,6 @@ void manage_ledstrip(){
 }
 
 void loop() {
-  //Serial.println(state);
   switch (state) {
     case state_off:
       proc_off();
@@ -267,8 +260,7 @@ void loop() {
     stringComplete = false;
   }
   delay(10);
-  
-}
+  }
 
 
 void push_n_hold_stop_button_listener(int target_state){
@@ -323,8 +315,8 @@ void proc_off(){
       delay(10);
     }
   }
-  push_n_hold_stop_button_listener(state_idle);
-  push_n_hold_flush_button_listener(state_programming_idle);
+  push_n_hold_stop_button_listener(state_idle); //push and hold stop button to turn machine on
+  push_n_hold_flush_button_listener(state_programming_idle); //push and hold flush button when machine is in off state to enter programming idle
 }
 
 void proc_idle(){
@@ -340,9 +332,9 @@ void proc_idle(){
       delay(10);
     }
   }
-  push_n_hold_stop_button_listener(state_off);
+  push_n_hold_stop_button_listener(state_off); //push and hold stop button to turn machine off
   for (byte x=0;x<4;x++){
-    if (digitalRead(BUTTON[x]) == HIGH){
+    if (digitalRead(BUTTON[x]) == HIGH){ //push keypad button to start extraction
       Serial.println("Button selected!");
       dose = configuration.preset[x];
       detachInterrupt(FLOW_INT);
@@ -352,7 +344,7 @@ void proc_idle(){
       state = state_preinfuse;
     }
   }
-  if (digitalRead(BUTTON_FLUSH) == HIGH){
+  if (digitalRead(BUTTON_FLUSH) == HIGH){ //push flush button to start flushing
     state = state_flush;
   }
 }
@@ -436,7 +428,7 @@ void proc_programming_idle(){
       flow_counter = 0;
       attachInterrupt(FLOW_INT, pulseCounter, FALLING);
       selected_button = x;
-      state = state_programming_button;  //I think we need another state here for pre-infusion programming & delay programming which will be the same as non-prpgramming just routing back to these other states
+      state = state_programming_button;  
     }
   }
 }
