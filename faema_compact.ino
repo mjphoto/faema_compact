@@ -360,8 +360,9 @@ void proc_idle(){
 
 void proc_pouring(){
   #ifdef DEBUG
-  Serial.println("pouring...");
-  Serial.println(flow_counter);
+  Serial.print("pouring: ");
+  Serial.print(flow_counter);
+  Serial.print("/");
   Serial.println(dose);
   #endif
    if (flow_counter > dose){
@@ -380,9 +381,11 @@ void proc_preinfuse(){
   unsigned long present = millis();
   preinfuse_present = present - preinfuse_counter;
   #ifdef DEBUG
-  Serial.print("Pouring: Preinfuse time is ");
-  Serial.println(preinfuse_present);
-  Serial.print("Flow counter now at: ");
+  Serial.print("Preinfusion time: ");
+  Serial.print(preinfuse_present);
+  Serial.print("/");
+  Serial.print(preinfusion_time);
+  Serial.print("      Flow counter now at: ");
   Serial.println(flow_counter);
   #endif
   if (preinfusion_time < preinfuse_present){
@@ -408,8 +411,10 @@ void proc_preinfuse_delay(){
   unsigned long present_delay = millis(); 
   preinfuse_delay_present = present_delay - preinfuse_delay_counter; 
   #ifdef DEBUG
-  Serial.print("Soaking: Preinfuse soak time is ");
-  Serial.println(preinfuse_delay_present);
+  Serial.print("Preinfusion soak time: ");
+  Serial.print(preinfuse_delay_present);
+  Serial.print("/");
+  Serial.println(preinfusion_delay_time);
   #endif
   if (preinfusion_delay_time < preinfuse_delay_present){
      state = state_pouring; 
@@ -515,7 +520,7 @@ void proc_programming_button(){
 
 void proc_flush(){
   #ifdef DEBUG
-  Serial.println("flushing...");
+  Serial.print("flushing: ");
   Serial.println(flow_counter);
   #endif
 
