@@ -7,6 +7,9 @@ const int state_programming_button = 4;
 const int state_flush = 5;
 const int state_preinfuse = 6;
 const int state_preinfuse_delay = 7;
+const int state_programming_preinfuse = 8;
+const int state_programming_preinfuse_delay = 9;
+
 int state = state_off;
 
 boolean WATER_NEEDED;
@@ -252,6 +255,12 @@ void loop() {
     case state_preinfuse_delay:
       proc_preinfuse_delay();
       break;
+    case state_programming_preinfuse:
+      proc_programming_preinfuse();
+      break;
+    case state_programming_preinfuse_delay:
+      proc_programming_preinfuse_delay();
+      break;
   }
   manage_outputs();
   manage_ledstrip();
@@ -351,8 +360,9 @@ void proc_idle(){
 
 void proc_pouring(){
   #ifdef DEBUG
-  Serial.println("pouring...");
-  Serial.println(flow_counter);
+  Serial.print("pouring: ");
+  Serial.print(flow_counter);
+  Serial.print("/");
   Serial.println(dose);
   #endif
    if (flow_counter > dose){
@@ -371,9 +381,11 @@ void proc_preinfuse(){
   unsigned long present = millis();
   preinfuse_present = present - preinfuse_counter;
   #ifdef DEBUG
-  Serial.print("Pouring: Preinfuse time is ");
-  Serial.println(preinfuse_present);
-  Serial.print("Flow counter now at: ");
+  Serial.print("Preinfusion time: ");
+  Serial.print(preinfuse_present);
+  Serial.print("/");
+  Serial.print(preinfusion_time);
+  Serial.print("      Flow counter now at: ");
   Serial.println(flow_counter);
   #endif
   if (preinfusion_time < preinfuse_present){
@@ -399,8 +411,10 @@ void proc_preinfuse_delay(){
   unsigned long present_delay = millis(); 
   preinfuse_delay_present = present_delay - preinfuse_delay_counter; 
   #ifdef DEBUG
-  Serial.print("Soaking: Preinfuse soak time is ");
-  Serial.println(preinfuse_delay_present);
+  Serial.print("Preinfusion soak time: ");
+  Serial.print(preinfuse_delay_present);
+  Serial.print("/");
+  Serial.println(preinfusion_delay_time);
   #endif
   if (preinfusion_delay_time < preinfuse_delay_present){
      state = state_pouring; 
@@ -428,8 +442,58 @@ void proc_programming_idle(){
       flow_counter = 0;
       attachInterrupt(FLOW_INT, pulseCounter, FALLING);
       selected_button = x;
-      state = state_programming_button;  
+      state = state_programming_preinfuse;  
     }
+  }
+}
+
+void proc_programming_preinfuse(){ 
+  if (preinfuse_counter == 0){
+    preinfuse_counter = millis();
+  }
+  unsigned long present = millis();
+  preinfuse_present = present - preinfuse_counter;
+  #ifdef DEBUG
+  Serial.print("Programming preinfuse time: ");
+  Serial.println(preinfuse_present);
+  Serial.print("Flow counter: ");
+  Serial.println(flow_counter);
+  #endif
+  if (preinfusion_time < preinfuse_present){
+     digitalWrite(RELAY_GRP_SOLENOID,LOW);  
+     state = state_programming_preinfuse_delay;
+     preinfuse_counter = 0;
+     preinfuse_present = 0;
+  }
+
+  if (digitalRead(BUTTON_STOP) == HIGH){
+    state = state_programming_idle;
+    preinfuse_counter = 0;
+    preinfuse_present = 0;
+  }
+}
+
+void proc_programming_preinfuse_delay(){ 
+  if (preinfuse_delay_counter == 0){ 
+    preinfuse_delay_counter = millis();  
+  }
+  unsigned long present_delay = millis(); 
+  preinfuse_delay_present = present_delay - preinfuse_delay_counter; 
+  #ifdef DEBUG
+  Serial.print("Preinfuse soak time: ");
+  Serial.println(preinfuse_delay_present);
+  Serial.print("Flow counter: ");
+  Serial.println(flow_counter);
+  #endif
+  if (preinfusion_delay_time < preinfuse_delay_present){
+     state = state_programming_button; 
+     preinfuse_delay_counter = 0;
+     preinfuse_delay_present = 0; 
+  }
+    if (digitalRead(BUTTON_STOP) == HIGH){
+    state = state_programming_idle; 
+    preinfuse_counter = 0;
+    preinfuse_present = 0;
   }
 }
 
@@ -437,6 +501,8 @@ void proc_programming_idle(){
 void proc_programming_button(){
   #ifdef DEBUG
   Serial.println("programming button...");
+  Serial.print("Flow counter: ");
+  Serial.println(flow_counter);
   #endif
 
   if (digitalRead(BUTTON_STOP) == HIGH){
@@ -454,7 +520,7 @@ void proc_programming_button(){
 
 void proc_flush(){
   #ifdef DEBUG
-  Serial.println("flushing...");
+  Serial.print("flushing: ");
   Serial.println(flow_counter);
   #endif
 
@@ -528,7 +594,7 @@ void manage_outputs(){
     digitalWrite(RELAY_PUMP,LOW);
   }
   
-  if ((state == state_flush) or (state == state_pouring) or (state == state_programming_button) or (state == state_preinfuse)){
+  if ((state == state_flush) or (state == state_pouring) or (state == state_programming_button) or (state == state_preinfuse) or (state == state_programming_preinfuse)){
     digitalWrite(RELAY_GRP_SOLENOID,HIGH);
   } else{
     digitalWrite(RELAY_GRP_SOLENOID,LOW);
