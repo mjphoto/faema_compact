@@ -9,6 +9,10 @@ const int state_preinfuse = 6;
 const int state_preinfuse_delay = 7;
 const int state_programming_preinfuse = 8;
 const int state_programming_preinfuse_delay = 9;
+const int state_manual = 10;
+const int state_manual_preinfuse = 11;
+const int state_manual_flush = 12;
+
 
 int state = state_off;
 
@@ -121,8 +125,10 @@ void pulseCounter()
 
 unsigned long STOP_BUTTON_PUSH_START = 0;
 unsigned long FLUSH_BUTTON_PUSH_START = 0;
+unsigned long BUTTON_ONE_PUSH_START = 0;
 const long STOP_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
 const long FLUSH_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
+const long BUTTON_ONE_TIME_THRESHOLD = 1500;
 const long preinfusion_time = 3500; //amount of time (in miliseconds) for pre-infusion
 const long preinfusion_delay_time = 6000; //amount of time (in miliseconds) for pre-infusion soak
 unsigned long preinfuse_counter = 0;
@@ -261,6 +267,15 @@ void loop() {
     case state_programming_preinfuse_delay:
       proc_programming_preinfuse_delay();
       break;
+    case state_manual:
+      proc_manual();
+      break;
+    case state_manual_preinfuse:
+      proc_manual_preinfuse();
+      break;
+    case state_manual_flush:
+      proc_manual_flush();
+      break;
   }
   manage_outputs();
   manage_ledstrip();
@@ -310,6 +325,23 @@ void push_n_hold_flush_button_listener(int target_state){
   }
 }
 
+void push_n_hold_button_one_listener(int target_state){
+  if (digitalRead(BUTTON_ONE_SMALL) == HIGH){
+    if (BUTTON_ONE_PUSH_START == 0){
+      BUTTON_ONE_PUSH_START = millis();
+    }
+    unsigned long now = millis();
+    unsigned long stop_button_time_pushed = now-BUTTON_ONE_PUSH_START;
+    if (stop_button_time_pushed > BUTTON_ONE_TIME_THRESHOLD){
+      BUTTON_ONE_PUSH_START = 0;
+      state = target_state;
+    }
+  }else {
+    BUTTON_ONE_PUSH_START = 0;
+  }
+}
+
+//NORMAL AUTO MACHINE OPERATION FUNCTIONS
 
 void proc_off(){
   #ifdef DEBUG
@@ -326,6 +358,7 @@ void proc_off(){
   }
   push_n_hold_stop_button_listener(state_idle); //push and hold stop button to turn machine on
   push_n_hold_flush_button_listener(state_programming_idle); //push and hold flush button when machine is in off state to enter programming idle
+  push_n_hold_button_one_listener(state_manual);
 }
 
 void proc_idle(){
@@ -357,6 +390,19 @@ void proc_idle(){
     state = state_flush;
   }
 }
+
+
+void proc_flush(){
+  #ifdef DEBUG
+  Serial.print("flushing: ");
+  Serial.println(flow_counter);
+  #endif
+
+  if (digitalRead(BUTTON_STOP) == HIGH){
+    state = state_idle;
+  }
+}
+
 
 void proc_pouring(){
   #ifdef DEBUG
@@ -429,6 +475,7 @@ void proc_preinfuse_delay(){
   }
 }
 
+//PROGRAMMING MODE FUNCTIONS
 
 void proc_programming_idle(){
   #ifdef DEBUG
@@ -518,16 +565,62 @@ void proc_programming_button(){
   }
 }
 
-void proc_flush(){
+
+//MANUAL MODE FUNCTIONS
+
+void proc_manual(){
   #ifdef DEBUG
-  Serial.print("flushing: ");
+  Serial.println("manual");
+  #endif
+  if (stringComplete) {
+    if (inputString.startsWith("Turn Off Services")) {
+      inputString = "";
+      stringComplete = false;
+      Serial.println("m:publish(\"coffee/state\",0,0,0, function(conn) end )");
+      state = state_off;
+      delay(10);
+    }
+  }
+  push_n_hold_stop_button_listener(state_off); //push and hold stop button to turn machine off
+  
+  if (digitalRead(BUTTON_ONE_SMALL) == HIGH){ //push keypad button to start extraction
+    detachInterrupt(FLOW_INT);
+    flow_counter = 0;
+    preinfuse_counter = 0;
+    attachInterrupt(FLOW_INT, pulseCounter, FALLING);
+    state = state_manual_preinfuse;
+  }
+
+  if (digitalRead(BUTTON_FLUSH) == HIGH){ //push flush button to start flushing
+    state = state_manual_flush;
+  }
+}
+
+void proc_manual_flush(){
+  #ifdef DEBUG
+  Serial.print("Manual flushing: ");
   Serial.println(flow_counter);
   #endif
 
   if (digitalRead(BUTTON_STOP) == HIGH){
-    state = state_idle;
+    state = state_manual;
   }
 }
+
+
+void proc_manual_preinfuse(){
+  #ifdef DEBUG
+  Serial.print("Manual Preinfuse - ");
+  Serial.println(flow_counter);
+  #endif
+  
+  if (digitalRead(BUTTON_STOP) == HIGH){
+    state = state_manual;
+    preinfuse_delay_counter = 0;
+    preinfuse_delay_present = 0;
+  }
+}
+
 
 unsigned long WATER_NEEDED_TIME_THRESHOLD = 300000; // 5 minutes in milli seconds
 unsigned long WATER_NEEDED_START = 0;
@@ -588,13 +681,13 @@ void manage_outputs(){
     digitalWrite(RELAY_HEATER,LOW);
   }
   
-  if ((WATER_NEEDED and (state == state_idle)) or (state == state_flush) or (state == state_pouring) or (state == state_programming_button)){
+  if ((WATER_NEEDED and (state == state_idle)) or (state == state_flush) or (state == state_manual_flush) or (state == state_pouring) or (state == state_programming_button)){
     digitalWrite(RELAY_PUMP,HIGH);
   }else{
     digitalWrite(RELAY_PUMP,LOW);
   }
   
-  if ((state == state_flush) or (state == state_pouring) or (state == state_programming_button) or (state == state_preinfuse) or (state == state_programming_preinfuse)){
+  if ((state == state_flush) or (state == state_manual_flush) or (state == state_pouring) or (state == state_programming_button) or (state == state_preinfuse) or (state == state_programming_preinfuse) or (state == state_manual_preinfuse)){
     digitalWrite(RELAY_GRP_SOLENOID,HIGH);
   } else{
     digitalWrite(RELAY_GRP_SOLENOID,LOW);
