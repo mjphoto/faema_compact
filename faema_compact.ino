@@ -70,6 +70,10 @@ int flush_cnt = 0;
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
 
+//SHOT TIMER
+unsigned long startTime = 0;
+unsigned long elapsedTime = 0;
+unsigned long lastShot = 0;
 
 // definition options
 #define DEBUG
@@ -368,7 +372,9 @@ void proc_off(){
 
 void proc_idle(){
   #ifdef DEBUG
-  Serial.println("idle");
+  Serial.print("Idle - Last shot = ");
+  Serial.print(lastShot/1000);
+  Serial.println(" seconds");
   #endif
   if (stringComplete) {
     if (inputString.startsWith("Turn Off Services")) {
@@ -388,6 +394,7 @@ void proc_idle(){
       flow_counter = 0;
       preinfuse_counter = 0;
       attachInterrupt(FLOW_INT, pulseCounter, FALLING);
+      startTime = millis();
       state = state_preinfuse;
     }
   }
@@ -408,14 +415,21 @@ void proc_flush(){
 }
 
 void proc_pouring(){
+  elapsedTime = millis() - startTime;
   #ifdef DEBUG
   Serial.print("pouring: ");
   Serial.print(flow_counter);
   Serial.print("/");
-  Serial.println(dose);
+  Serial.print(dose);
+  Serial.print("   Elapsed time: ");
+  Serial.print(elapsedTime/1000);
+  Serial.println(" seconds");
   #endif
    if (flow_counter > dose){
     state = state_idle;
+    lastShot = elapsedTime;
+    elapsedTime = 0;
+    startTime = 0;
   }
   if (digitalRead(BUTTON_STOP) == HIGH){
     state = state_idle;
@@ -423,7 +437,7 @@ void proc_pouring(){
 }
 
 void proc_preinfuse(){
-  //preinfusion counter
+  elapsedTime = millis() - startTime;
   if (preinfuse_counter == 0){
     preinfuse_counter = millis();
   }
@@ -435,7 +449,10 @@ void proc_preinfuse(){
   Serial.print("/");
   Serial.print(preinfusion_time);
   Serial.print("      Flow counter now at: ");
-  Serial.println(flow_counter);
+  Serial.print(flow_counter);
+  Serial.print("   Elapsed time: ");
+  Serial.print(elapsedTime/1000);
+  Serial.println(" seconds");
   #endif
   if (preinfusion_time < preinfuse_present){
      digitalWrite(RELAY_GRP_SOLENOID,LOW);  
@@ -454,6 +471,7 @@ void proc_preinfuse(){
 }
 
 void proc_preinfuse_delay(){
+  elapsedTime = millis() - startTime;
   if (preinfuse_delay_counter == 0){ 
     preinfuse_delay_counter = millis();  
   }
@@ -463,7 +481,10 @@ void proc_preinfuse_delay(){
   Serial.print("Preinfusion soak time: ");
   Serial.print(preinfuse_delay_present);
   Serial.print("/");
-  Serial.println(preinfusion_delay_time);
+  Serial.print(preinfusion_delay_time);
+  Serial.print("   Elapsed time: ");
+  Serial.print(elapsedTime/1000);
+  Serial.println(" seconds");
   #endif
   if (preinfusion_delay_time < preinfuse_delay_present){
      state = state_pouring; 
