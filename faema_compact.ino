@@ -13,7 +13,6 @@ const int state_manual = 10;
 const int state_manual_preinfuse = 11;
 const int state_manual_flush = 12;
 
-
 int state = state_off;
 
 boolean WATER_NEEDED;
@@ -57,7 +56,6 @@ struct config_t
 {
    int preset[4];
 } configuration;
-
 
 // FLOW_METER DOSE PRESETS
 int dose;
@@ -125,10 +123,10 @@ void pulseCounter()
 
 unsigned long STOP_BUTTON_PUSH_START = 0;
 unsigned long FLUSH_BUTTON_PUSH_START = 0;
-unsigned long BUTTON_ONE_PUSH_START = 0;
+unsigned long BUTTON_ONE_PRESS_START = 0;
 const long STOP_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
 const long FLUSH_BUTTON_TIME_THRESHOLD = 1500; //amount of time (in miliseconds) for hold theshold to activate other function of button
-const long BUTTON_ONE_TIME_THRESHOLD = 1500;
+const long BUTTON_ONE_HOLD_THRESHOLD = 1500; // amount of time (in miliseconds) for hold theshold to activate other function of button
 const long preinfusion_time = 3500; //amount of time (in miliseconds) for pre-infusion
 const long preinfusion_delay_time = 6000; //amount of time (in miliseconds) for pre-infusion soak
 unsigned long preinfuse_counter = 0;
@@ -137,7 +135,7 @@ unsigned long present;
 unsigned long preinfuse_delay_counter = 0;
 unsigned long preinfuse_delay_present;
 unsigned long present_delay;
-
+bool BUTTON_ONE_PRESSED = false;
 
 //Led strip stuff
 uint32_t Wheel(byte WheelPos) {
@@ -184,7 +182,6 @@ void led_mode_off(){
    strip.show();
 }
 
-
 void led_mode_percent(){
   float fraction;
   fraction = float(flow_counter)/dose;
@@ -205,13 +202,15 @@ void led_mode_percent(){
   }
 }
 
-
 void manage_ledstrip(){
   switch (state) {
     case state_off:
       led_mode_off();
       break;
     case state_idle:
+      led_mode_white();
+      break;
+    case state_manual:
       led_mode_white();
       break;
     case state_pouring:
@@ -231,6 +230,12 @@ void manage_ledstrip(){
       break;
     case state_preinfuse_delay:
       led_mode_rainbow();
+      break;
+    case state_manual_preinfuse:
+      led_mode_rainbow();
+      break;
+    case state_manual_flush:
+      led_mode_percent();
       break;
   }
 }
@@ -286,7 +291,6 @@ void loop() {
   delay(10);
   }
 
-
 void push_n_hold_stop_button_listener(int target_state){
   if (digitalRead(BUTTON_STOP) == HIGH){
     if (STOP_BUTTON_PUSH_START == 0){
@@ -325,22 +329,6 @@ void push_n_hold_flush_button_listener(int target_state){
   }
 }
 
-void push_n_hold_button_one_listener(int target_state){
-  if (digitalRead(BUTTON_ONE_SMALL) == HIGH){
-    if (BUTTON_ONE_PUSH_START == 0){
-      BUTTON_ONE_PUSH_START = millis();
-    }
-    unsigned long now = millis();
-    unsigned long stop_button_time_pushed = now-BUTTON_ONE_PUSH_START;
-    if (stop_button_time_pushed > BUTTON_ONE_TIME_THRESHOLD){
-      BUTTON_ONE_PUSH_START = 0;
-      state = target_state;
-    }
-  }else {
-    BUTTON_ONE_PUSH_START = 0;
-  }
-}
-
 //NORMAL AUTO MACHINE OPERATION FUNCTIONS
 
 void proc_off(){
@@ -358,7 +346,24 @@ void proc_off(){
   }
   push_n_hold_stop_button_listener(state_idle); //push and hold stop button to turn machine on
   push_n_hold_flush_button_listener(state_programming_idle); //push and hold flush button when machine is in off state to enter programming idle
-  push_n_hold_button_one_listener(state_manual);
+
+  // Check for BUTTON_ONE_SMALL press
+  if (digitalRead(BUTTON_ONE_SMALL) == HIGH) {
+    if (!BUTTON_ONE_PRESSED) {
+      BUTTON_ONE_PRESS_START = millis();
+      BUTTON_ONE_PRESSED = true;
+    }
+  } else {
+    if (BUTTON_ONE_PRESSED) {
+      unsigned long pressDuration = millis() - BUTTON_ONE_PRESS_START;
+      if (pressDuration > BUTTON_ONE_HOLD_THRESHOLD) {
+        state = state_manual;
+      } else {
+        // Short press action, currently no action needed in off state
+      }
+      BUTTON_ONE_PRESSED = false;
+    }
+  }
 }
 
 void proc_idle(){
@@ -391,7 +396,6 @@ void proc_idle(){
   }
 }
 
-
 void proc_flush(){
   #ifdef DEBUG
   Serial.print("flushing: ");
@@ -402,7 +406,6 @@ void proc_flush(){
     state = state_idle;
   }
 }
-
 
 void proc_pouring(){
   #ifdef DEBUG
@@ -582,16 +585,28 @@ void proc_manual(){
     }
   }
   push_n_hold_stop_button_listener(state_off); //push and hold stop button to turn machine off
-  
-  if (digitalRead(BUTTON_ONE_SMALL) == HIGH){ //push keypad button to start extraction
-    detachInterrupt(FLOW_INT);
-    flow_counter = 0;
-    preinfuse_counter = 0;
-    attachInterrupt(FLOW_INT, pulseCounter, FALLING);
-    state = state_manual_preinfuse;
+
+  // Check for BUTTON_ONE_SMALL press
+  if (digitalRead(BUTTON_ONE_SMALL) == HIGH) {
+    if (!BUTTON_ONE_PRESSED) {
+      BUTTON_ONE_PRESS_START = millis();
+      BUTTON_ONE_PRESSED = true;
+    }
+  } else {
+    if (BUTTON_ONE_PRESSED) {
+      unsigned long pressDuration = millis() - BUTTON_ONE_PRESS_START;
+      if (pressDuration <= BUTTON_ONE_HOLD_THRESHOLD) {
+        detachInterrupt(FLOW_INT);
+        flow_counter = 0;
+        preinfuse_counter = 0;
+        attachInterrupt(FLOW_INT, pulseCounter, FALLING);
+        state = state_manual_preinfuse;
+      }
+      BUTTON_ONE_PRESSED = false;
+    }
   }
 
-  if (digitalRead(BUTTON_FLUSH) == HIGH){ //push flush button to start flushing
+  if (digitalRead(BUTTON_FLUSH) == HIGH) { // push flush button to start flushing
     state = state_manual_flush;
   }
 }
@@ -607,7 +622,6 @@ void proc_manual_flush(){
   }
 }
 
-
 void proc_manual_preinfuse(){
   #ifdef DEBUG
   Serial.print("Manual Preinfuse - ");
@@ -621,7 +635,6 @@ void proc_manual_preinfuse(){
   }
 }
 
-
 unsigned long WATER_NEEDED_TIME_THRESHOLD = 300000; // 5 minutes in milli seconds
 unsigned long WATER_NEEDED_START = 0;
 unsigned long FILL_STAT_HIGH_START = 0;
@@ -631,11 +644,6 @@ unsigned long FILL_TRIGGER_TIME_THRESHOLD = 3000;  // 3s in milli seconds
 void manage_outputs(){
   unsigned int fill_stat_analog_val=0;
   fill_stat_analog_val = analogRead(FILL_STAT);
-  //#ifdef DEBUG
-  //Serial.print("Fill stat value: ");
-  //Serial.println(fill_stat_analog_val);
-  //Serial.println(flow_counter);
-  //#endif
 
   if (fill_stat_analog_val>FILL_STAT_LVL_THRESHOLD){ // high -> water needed
     if (FILL_STAT_HIGH_START == 0){
@@ -674,7 +682,6 @@ void manage_outputs(){
     WATER_NEEDED_START = 0;
   }
 
-  
   if ((state != state_off) and HEAT_NEEDED){
     digitalWrite(RELAY_HEATER,HIGH);}
   else{
