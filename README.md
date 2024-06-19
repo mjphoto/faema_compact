@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project implements a finite state machine (FSM) for controlling a Faema Compact S coffee machine. The code handles various states of the machine, inputs from buttons and sensors, and outputs to relays and an LED strip. The FSM ensures the machine transitions smoothly between different states such as idle, pouring, programming, and flushing.
+This project implements a finite state machine for controlling a Faema Compact S coffee machine. The code handles various states of the machine, inputs from buttons and sensors, and outputs to relays and an LED strip. There are 3 main modes, Programming, Manual & Automatic, each of these modes has a number of states that the state machine transitions through.
 
 ## Features
 
@@ -18,6 +18,7 @@ This project implements a finite state machine (FSM) for controlling a Faema Com
 - Arduino Nano
 - Adafruit NeoPixel LED Strip
 - Relays
+- 3x Push Buttons (if not using standard button panel)
 
 ### Faema Compact Hardware
 - Flow Meter
@@ -65,6 +66,7 @@ The FSM has the following states:
 - `state_flush`: The machine is flushing.
 - `state_preinfuse`: Pre-infusion state.
 - `state_preinfuse_delay`: Pre-infusion soak state.
+- ADD IN EXTRA STATES
 
 ### Setup
 
@@ -95,14 +97,22 @@ The FSM has the following states:
 
 - `preinfusion_time`: Change this value to set the preinfusion time.
 - `preinfusion_delay_time`: Change this value to set the preinfusion soak time.
+- ADD IN EXTRAS
 
-## Usage
+## Automatic Mode
 
-- **Power On/Off**: Hold the stop button to toggle between off and idle states.
+- **Power On/Off**: Hold the stop button to toggle between off and idle (Automatic) states.
 - **Start Pouring**: Press one of the coffee buttons to start the coffee extraction process.
 - **Flush**: Press the flush button to start the flushing process.
 
-### Programming Presets
+## Automatic Mode
+
+- **Power On/Off**: Hold the shot button to toggle between off and manual states.
+- **Start/Stop Preinfusion**: Press the shot button to start the preinfusion, press stop to stop preinfusion and transition back to manual.
+- **Pouring**: Press the flush button to transition to pouring state, press stop to transition back to manual.
+
+
+## Programming Mode
 - Hold the flush button while the machine is off to enter programming mode.
 - Press the desired button to start programming its preset
 - Press the stop button to stop pouring once the desired volume is poured, this will set the volume for the preset.
