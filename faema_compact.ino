@@ -496,6 +496,7 @@ void proc_preinfuse_delay(){
      state = state_pouring; 
      preinfuse_delay_counter = 0;
      preinfuse_delay_present = 0; 
+     startTime = millis();
   }
 
   if (digitalRead(BUTTON_STOP) == HIGH){
