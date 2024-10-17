@@ -490,7 +490,7 @@ void proc_preinfuse_delay(){
   Serial.print(preinfusion_delay_time);
   Serial.print("   Elapsed time: ");
   Serial.print(elapsedTime/1000);
-  Serial.print(" seconds");
+  Serial.println(" seconds");
   #endif
   if (preinfusion_delay_time < preinfuse_delay_present){
      state = state_pouring; 
