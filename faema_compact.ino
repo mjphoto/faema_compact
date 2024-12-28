@@ -13,7 +13,8 @@ const int state_manual = 10;
 const int state_manual_preinfuse = 11;
 const int state_manual_flush = 12;
 
-int state = state_off;
+//int state = state_off;
+int state = state_idle;
 
 boolean WATER_NEEDED;
 boolean HEAT_NEEDED;
@@ -178,12 +179,19 @@ void led_mode_white(){
    }
    strip.show();
 }
-
+/*
 void led_mode_off(){
   for(int i=0; i<strip.numPixels(); i++) {
     strip.setPixelColor(i, 0x000000);
    }
    strip.show();
+}*/
+
+void led_mode_off(){
+  for(int i=0; i<strip.numPixels(); i++) {
+    strip.setPixelColor(i, strip.Color(255, 0, 0)); // Set all LEDs to red
+  }
+  strip.show();
 }
 
 void led_mode_percent(){
